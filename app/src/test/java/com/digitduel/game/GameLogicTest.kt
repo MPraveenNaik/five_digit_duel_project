@@ -162,4 +162,41 @@ class GameLogicTest {
         assertEquals("GUESS|04612", parsed.payload)
         assertNull(GameLogic.parseRoomEnvelope("BAD|peer|1|hi"))
     }
+
+    @Test
+    fun variableDigitLengths_4to7_validateEvaluateAndSyncConfig() {
+        for (len in 4..7) {
+            val secret = GameLogic.generateRandomSecret(len, Random(len))
+            assertEquals(len, secret.length)
+            assertTrue(GameLogic.isValidNumber(secret, len))
+            assertFalse(GameLogic.isValidNumber(secret, if (len == 4) 5 else 4))
+
+            val winEval = GameLogic.evaluateGuess(secret, secret, len)
+            assertTrue(winEval.isWin)
+            assertEquals(len, winEval.results.size)
+
+            val botGuess = GameLogic.generateBotGuess(listOf(winEval), len, Random(99))
+            assertEquals(secret, botGuess)
+        }
+
+        assertFalse(GameLogic.isSupportedDigitCount(3))
+        assertFalse(GameLogic.isSupportedDigitCount(8))
+
+        val eval7 = GameLogic.evaluateGuess("0123456", "6193802", 7)
+        assertFalse(eval7.isWin)
+        assertEquals(7, eval7.results.size)
+        val encoded = GameLogic.encodeFeedbackCodes(eval7.results)
+        val decoded = GameLogic.decodeFeedback("6193802", encoded, 7)
+        assertEquals(eval7, decoded)
+
+        assertEquals(
+            GameLogic.ProtocolMessage.Config(6, 5),
+            GameLogic.parseProtocolLine(GameLogic.formatConfig(6, 5))
+        )
+        assertEquals(
+            GameLogic.ProtocolMessage.Guess("0123456"),
+            GameLogic.parseProtocolLine("GUESS|0123456", expectedDigitCount = 7)
+        )
+        assertNull(GameLogic.parseProtocolLine("GUESS|0123", expectedDigitCount = 7))
+    }
 }

@@ -1,41 +1,46 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Digit Duel</string>
-    <string name="app_subtitle">5-Digit Online &amp; Bluetooth Number Battle</string>
+    <string name="app_subtitle">Crack the secret code before your rival!</string>
 
-    <string name="player_profile_title">Player Profile</string>
-    <string name="player_name_hint">Your Display Name</string>
+    <string name="player_profile_title">Player Card</string>
+    <string name="player_name_hint">Player Name</string>
     <string name="save_name">Save</string>
-    <string name="stats_format">Games Played: %1$d  •  Wins: %2$d</string>
+    <string name="stats_format">%1$d Wins  •  %2$d Matches</string>
 
-    <string name="play_mode_title">Start a Match</string>
-    <string name="create_online_room">Create Room (Internet)</string>
-    <string name="join_online_room">Join Room (Internet)</string>
-    <string name="host_bluetooth">Host Game (Bluetooth)</string>
-    <string name="join_bluetooth">Join Game (Bluetooth)</string>
-    <string name="practice_offline">Practice vs Phone (Offline)</string>
+    <string name="match_settings_title">Match Rules</string>
+    <string name="digit_count_label">Secret Length</string>
+    <string name="session_matches_label">Session Matches</string>
 
-    <string name="how_to_play_title">How to Play</string>
-    <string name="how_to_play_rules">Pick a secret 5-digit number with NO repeating digits (leading zeros allowed). Take turns guessing your opponent\'s secret!</string>
-    <string name="legend_correct">Green — Digit exists &amp; is in the exact position</string>
-    <string name="legend_wrong">Amber — Digit exists, but in a different position</string>
-    <string name="legend_absent">Gray — Digit does not exist in the secret</string>
+    <string name="play_mode_title">Choose Arena</string>
+    <string name="create_online_room">Create Room (Online)</string>
+    <string name="join_online_room">Join Room (Code)</string>
+    <string name="host_bluetooth">Host Nearby Duel</string>
+    <string name="join_bluetooth">Join Nearby Duel</string>
+    <string name="practice_offline">Solo Practice vs Bot</string>
 
-    <string name="setup_title">Choose Your Secret</string>
-    <string name="setup_hint">Enter 5 unique digits (0–9, leading zeros allowed)</string>
-    <string name="secret_input_hint">5-Digit Secret</string>
+    <string name="how_to_play_title">Tile Guide</string>
+    <string name="how_to_play_rules">Pick a secret number with unique digits (leading zeros allowed). Outsmart your rival turn by turn!</string>
+    <string name="legend_correct">Green — Right digit, exact spot</string>
+    <string name="legend_wrong">Amber — Right digit, wrong spot</string>
+    <string name="legend_absent">Gray — Not in the secret</string>
+
+    <string name="setup_title">Lock Your Secret</string>
+    <string name="setup_hint_format">Enter %1$d unique digits (0–9, leading zeros allowed)</string>
+    <string name="secret_input_hint">Secret Code</string>
     <string name="lock_secret">Lock Secret</string>
     <string name="waiting_opponent">Waiting for %1$s to lock their secret…</string>
     <string name="leave_match">Leave</string>
 
-    <string name="secret_masked">My Secret: ••••• (Tap to peek)</string>
+    <string name="secret_masked_format">My Secret: %1$s (Tap to peek)</string>
     <string name="secret_revealed">My Secret: %1$s (Tap to hide)</string>
-    <string name="guess_input_hint">Enter 5-digit guess</string>
-    <string name="submit_guess">Submit Guess</string>
-    <string name="tab_your_guesses">Your Guesses (%1$d)</string>
-    <string name="tab_opponent_guesses">%1$s\'s Guesses (%2$d)</string>
-    <string name="empty_history">No guesses yet in this tab.</string>
+    <string name="guess_input_hint_format">Enter %1$d-digit guess</string>
+    <string name="submit_guess">Guess</string>
+    <string name="tab_your_guesses">Yours (%1$d)</string>
+    <string name="tab_opponent_guesses">%1$s (%2$d)</string>
+    <string name="empty_history">No guesses yet. Make your move!</string>
 
-    <string name="play_again">Play Again</string>
+    <string name="play_again">Next Match</string>
+    <string name="new_session">New Session</string>
     <string name="back_to_lobby">Lobby</string>
 </resources>
