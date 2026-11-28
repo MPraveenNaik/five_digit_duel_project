@@ -199,4 +199,34 @@ class GameLogicTest {
         )
         assertNull(GameLogic.parseProtocolLine("GUESS|0123", expectedDigitCount = 7))
     }
+
+    @Test
+    fun equalTurnsOutcome_requiresEqualGuessCountsAndHandlesDrawAndForfeit() {
+        // First player solved on guess #3 while opponent only has 2 guesses -> wait for equalizing guess.
+        assertNull(GameLogic.resolveEqualTurnsOutcome(3, 2, localSolved = true, remoteSolved = false))
+
+        // Both solved in 3 guesses -> Draw.
+        assertEquals(
+            GameLogic.MatchOutcome.DRAW,
+            GameLogic.resolveEqualTurnsOutcome(3, 3, localSolved = true, remoteSolved = true)
+        )
+
+        // First solved in 3, second missed 3rd -> First wins.
+        assertEquals(
+            GameLogic.MatchOutcome.LOCAL_WIN,
+            GameLogic.resolveEqualTurnsOutcome(3, 3, localSolved = true, remoteSolved = false)
+        )
+
+        // First missed 3rd, second solved on 3rd -> Second wins.
+        assertEquals(
+            GameLogic.MatchOutcome.OPPONENT_WIN,
+            GameLogic.resolveEqualTurnsOutcome(3, 3, localSolved = false, remoteSolved = true)
+        )
+
+        // Neither solved -> keep playing.
+        assertNull(GameLogic.resolveEqualTurnsOutcome(3, 3, localSolved = false, remoteSolved = false))
+
+        // FORFEIT message parses cleanly.
+        assertEquals(GameLogic.ProtocolMessage.Forfeit, GameLogic.parseProtocolLine("FORFEIT"))
+    }
 }

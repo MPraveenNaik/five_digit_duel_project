@@ -18,7 +18,7 @@
     <string name="practice_offline">Practice vs Bot</string>
 
     <string name="how_to_play_title">Tile Guide</string>
-    <string name="how_to_play_rules">Pick a secret number with unique digits (leading zeros allowed). Outsmart your rival turn by turn.</string>
+    <string name="how_to_play_rules">Pick a secret with unique digits (leading zeros allowed). Players take equal turns: if the first player solves it, the rival gets one final equalizing guess — solve both on the same turn for a Draw.</string>
     <string name="legend_correct">Green — Right digit, exact spot</string>
     <string name="legend_wrong">Yellow — Right digit, wrong spot</string>
     <string name="legend_absent">Gray — Not in the secret</string>

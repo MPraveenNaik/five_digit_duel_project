@@ -48,6 +48,12 @@ object GameLogic {
         data class Invalid(val errorMessage: String) : ValidationResult()
     }
 
+    enum class MatchOutcome {
+        LOCAL_WIN,
+        OPPONENT_WIN,
+        DRAW
+    }
+
     sealed class ProtocolMessage {
         data class Hello(val playerName: String) : ProtocolMessage()
         data class Config(val digitCount: Int, val sessionMatches: Int) : ProtocolMessage()
@@ -56,6 +62,22 @@ object GameLogic {
         data class Feedback(val digits: String, val codesCsv: String) : ProtocolMessage()
         data class Reveal(val digits: String) : ProtocolMessage()
         data object PlayAgain : ProtocolMessage()
+        data object Forfeit : ProtocolMessage()
+    }
+
+    fun resolveEqualTurnsOutcome(
+        localGuessCount: Int,
+        remoteGuessCount: Int,
+        localSolved: Boolean,
+        remoteSolved: Boolean
+    ): MatchOutcome? {
+        if (localGuessCount <= 0 || localGuessCount != remoteGuessCount) return null
+        if (!localSolved && !remoteSolved) return null
+        return when {
+            localSolved && remoteSolved -> MatchOutcome.DRAW
+            localSolved -> MatchOutcome.LOCAL_WIN
+            else -> MatchOutcome.OPPONENT_WIN
+        }
     }
 
     fun isSupportedDigitCount(digitCount: Int): Boolean = digitCount in MIN_DIGITS..MAX_DIGITS
@@ -308,6 +330,7 @@ object GameLogic {
                 }
             }
             "PLAY_AGAIN" -> if (parts.size == 1) ProtocolMessage.PlayAgain else null
+            "FORFEIT" -> if (parts.size == 1) ProtocolMessage.Forfeit else null
             else -> null
         }
     }

@@ -204,14 +204,41 @@ class OnlineRoomManager(
         }
     }
 
-    fun disconnect() {
+    fun disconnectGracefully(finalMessage: String) {
         val generation = sessionGen.incrementAndGet()
+        val wasConnected = isConnectedSession
         intentionalClose = true
         isConnectedSession = false
         cancelJoinTimeout()
 
         executor.execute {
-            closeCurrentClientQuietly(sendLeave = true)
+            val client = mqttClient
+            val topic = publishTopic
+            if (wasConnected && client != null && client.isConnected && topic.isNotEmpty()) {
+                publishEnvelope(client, topic, finalMessage)
+                try {
+                    Thread.sleep(120L)
+                } catch (_: InterruptedException) {
+                }
+            }
+            closeCurrentClientQuietly(sendLeave = wasConnected)
+            if (sessionGen.get() == generation) {
+                remotePeerId = null
+                activeRoomCode = ""
+                publishTopic = ""
+            }
+        }
+    }
+
+    fun disconnect() {
+        val generation = sessionGen.incrementAndGet()
+        val wasConnected = isConnectedSession
+        intentionalClose = true
+        isConnectedSession = false
+        cancelJoinTimeout()
+
+        executor.execute {
+            closeCurrentClientQuietly(sendLeave = wasConnected)
             if (sessionGen.get() == generation) {
                 remotePeerId = null
                 activeRoomCode = ""
@@ -238,7 +265,7 @@ class OnlineRoomManager(
                 override fun connectionLost(cause: Throwable?) {
                     if (!intentionalClose && sessionGen.get() == generation) {
                         executor.execute {
-                            handleUnexpectedDrop("Online connection lost.", generation)
+                            handleUnexpectedDrop("Network connection lost. Check your internet.", generation)
                         }
                     }
                 }
@@ -336,7 +363,7 @@ class OnlineRoomManager(
 
             payload == "SYS_LEAVE" -> {
                 if (envelope.senderId == remotePeerId) {
-                    handleUnexpectedDrop("Opponent left the room.", generation)
+                    handleUnexpectedDrop("Opponent disconnected (network drop or closed app).", generation)
                 }
             }
 
@@ -391,7 +418,7 @@ class OnlineRoomManager(
         val topic = publishTopic
         mqttClient = null
         try {
-            if (sendLeave && client.isConnected && topic.isNotEmpty() && isConnectedSession) {
+            if (sendLeave && client.isConnected && topic.isNotEmpty()) {
                 val leavePayload = GameLogic.formatRoomEnvelope(localPeerId, 0, "SYS_LEAVE")
                     .toByteArray(Charsets.UTF_8)
                 val msg = MqttMessage(leavePayload).apply {

@@ -38,13 +38,17 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.widget.doAfterTextChanged
+import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.digitduel.game.databinding.ActivityMainBinding
 import com.digitduel.game.databinding.ItemGuessRowBinding
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.tabs.TabLayout
+import java.util.concurrent.Executors
 
 class MainActivity : AppCompatActivity(), BluetoothGameManager.Listener, OnlineRoomManager.Listener {
 
@@ -66,6 +70,8 @@ class MainActivity : AppCompatActivity(), BluetoothGameManager.Listener, OnlineR
     private lateinit var guessAdapter: GuessAdapter
 
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val botExecutor = Executors.newSingleThreadExecutor()
+    private var roundGeneration = 0L
 
     // Match & session state
     private var currentScreen = ScreenState.LOBBY
@@ -93,6 +99,9 @@ class MainActivity : AppCompatActivity(), BluetoothGameManager.Listener, OnlineR
     private var isGameplayActive = false
     private var isLocalTurn = true
     private var awaitingRemoteFeedback = false
+    private var pendingGuessDigits = ""
+    private var localSolved = false
+    private var remoteSolved = false
     private var isGameOver = false
     private var secretRevealSent = false
     private var localPlayAgainSent = false
@@ -107,6 +116,7 @@ class MainActivity : AppCompatActivity(), BluetoothGameManager.Listener, OnlineR
     private var hostWaitingDialog: AlertDialog? = null
     private var joinDialog: AlertDialog? = null
     private var onlineDialog: AlertDialog? = null
+    private var exitConfirmDialog: AlertDialog? = null
     private var discoveryReceiverRegistered = false
     private val discoveredDevices = mutableListOf<DiscoveredDevice>()
     private var deviceListAdapter: ArrayAdapter<String>? = null
@@ -399,11 +409,17 @@ class MainActivity : AppCompatActivity(), BluetoothGameManager.Listener, OnlineR
 
     private fun setupSecretUi() {
         binding.btnLeaveSetup.setOnClickListener {
-            leaveMatchToLobby()
+            requestExitMatch()
         }
 
         binding.btnLockSecret.setOnClickListener {
             lockLocalSecret()
+        }
+
+        binding.etSecretInput.doAfterTextChanged {
+            if (binding.tvSecretError.visibility == View.VISIBLE) {
+                binding.tvSecretError.visibility = View.GONE
+            }
         }
 
         binding.etSecretInput.setOnEditorActionListener { _, actionId, _ ->
@@ -418,10 +434,11 @@ class MainActivity : AppCompatActivity(), BluetoothGameManager.Listener, OnlineR
 
     private fun setupGameplayUi() {
         binding.rvGuesses.layoutManager = LinearLayoutManager(this)
+        binding.rvGuesses.setItemViewCacheSize(20)
         binding.rvGuesses.adapter = guessAdapter
 
         binding.btnLeaveGame.setOnClickListener {
-            leaveMatchToLobby()
+            requestExitMatch()
         }
 
         binding.layoutSecretPeek.setOnClickListener {
@@ -431,6 +448,12 @@ class MainActivity : AppCompatActivity(), BluetoothGameManager.Listener, OnlineR
 
         binding.btnSubmitGuess.setOnClickListener {
             submitLocalGuess()
+        }
+
+        binding.etGuessInput.doAfterTextChanged {
+            if (binding.tvGuessError.visibility == View.VISIBLE) {
+                binding.tvGuessError.visibility = View.GONE
+            }
         }
 
         binding.etGuessInput.setOnEditorActionListener { _, actionId, _ ->
@@ -459,7 +482,7 @@ class MainActivity : AppCompatActivity(), BluetoothGameManager.Listener, OnlineR
         }
 
         binding.btnBackToLobby.setOnClickListener {
-            leaveMatchToLobby()
+            requestExitMatch()
         }
     }
 
@@ -470,7 +493,7 @@ class MainActivity : AppCompatActivity(), BluetoothGameManager.Listener, OnlineR
                     isEnabled = false
                     onBackPressedDispatcher.onBackPressed()
                 } else {
-                    leaveMatchToLobby()
+                    requestExitMatch()
                 }
             }
         })
@@ -493,10 +516,24 @@ class MainActivity : AppCompatActivity(), BluetoothGameManager.Listener, OnlineR
     }
 
     private fun showScreen(screen: ScreenState) {
+        val changed = currentScreen != screen
         currentScreen = screen
+        val targetView: View = when (screen) {
+            ScreenState.LOBBY -> binding.viewLobby
+            ScreenState.SETUP -> binding.viewSetup
+            ScreenState.GAME -> binding.viewGame
+        }
         binding.viewLobby.visibility = if (screen == ScreenState.LOBBY) View.VISIBLE else View.GONE
         binding.viewSetup.visibility = if (screen == ScreenState.SETUP) View.VISIBLE else View.GONE
         binding.viewGame.visibility = if (screen == ScreenState.GAME) View.VISIBLE else View.GONE
+
+        if (changed) {
+            targetView.animate().cancel()
+            targetView.alpha = 0f
+            targetView.animate().alpha(1f).setDuration(150L).start()
+        } else {
+            targetView.alpha = 1f
+        }
     }
 
     // --- Bluetooth Permissions & Flows ---
@@ -792,6 +829,7 @@ class MainActivity : AppCompatActivity(), BluetoothGameManager.Listener, OnlineR
 
     private fun prepareRoundSetup() {
         mainHandler.removeCallbacksAndMessages(null)
+        roundGeneration += 1
         mySecret = ""
         opponentSecret = ""
         secretRevealedPeek = false
@@ -799,6 +837,9 @@ class MainActivity : AppCompatActivity(), BluetoothGameManager.Listener, OnlineR
         remoteReady = false
         isGameplayActive = false
         awaitingRemoteFeedback = false
+        pendingGuessDigits = ""
+        localSolved = false
+        remoteSolved = false
         isGameOver = false
         secretRevealSent = false
         localPlayAgainSent = false
@@ -862,6 +903,9 @@ class MainActivity : AppCompatActivity(), BluetoothGameManager.Listener, OnlineR
         isGameplayActive = true
         isGameOver = false
         awaitingRemoteFeedback = false
+        pendingGuessDigits = ""
+        localSolved = false
+        remoteSolved = false
         secretRevealSent = false
         localPlayAgainSent = false
         remotePlayAgainReceived = false
@@ -922,12 +966,41 @@ class MainActivity : AppCompatActivity(), BluetoothGameManager.Listener, OnlineR
             binding.tvTurnBanner.text = "Checking guess with $opponentName…"
             binding.tvTurnBanner.setTextColor(ContextCompat.getColor(this, R.color.warning))
         } else if (isLocalTurn) {
-            binding.tvTurnBanner.text = "Your Turn — Crack $opponentName's $activeDigitCount-digit code"
-            binding.tvTurnBanner.setTextColor(ContextCompat.getColor(this, R.color.accent_primary))
+            binding.tvTurnBanner.text = if (remoteSolved) {
+                "$opponentName solved it in ${opponentGuesses.size}! Final guess to draw!"
+            } else {
+                "Your Turn — Crack $opponentName's $activeDigitCount-digit code"
+            }
+            binding.tvTurnBanner.setTextColor(
+                ContextCompat.getColor(
+                    this,
+                    if (remoteSolved) R.color.warning else R.color.accent_primary
+                )
+            )
         } else {
-            binding.tvTurnBanner.text = "$opponentName's Turn…"
-            binding.tvTurnBanner.setTextColor(ContextCompat.getColor(this, R.color.warning))
+            binding.tvTurnBanner.text = if (localSolved) {
+                "Cracked in ${myGuesses.size}! Waiting for $opponentName's equalizing guess…"
+            } else {
+                "$opponentName's Turn…"
+            }
+            binding.tvTurnBanner.setTextColor(
+                ContextCompat.getColor(
+                    this,
+                    if (localSolved) R.color.success else R.color.warning
+                )
+            )
         }
+    }
+
+    private fun checkEqualRoundResolution(): Boolean {
+        val outcome = GameLogic.resolveEqualTurnsOutcome(
+            localGuessCount = myGuesses.size,
+            remoteGuessCount = opponentGuesses.size,
+            localSolved = localSolved,
+            remoteSolved = remoteSolved
+        ) ?: return false
+        finishGame(outcome)
+        return true
     }
 
     private fun submitLocalGuess() {
@@ -950,15 +1023,17 @@ class MainActivity : AppCompatActivity(), BluetoothGameManager.Listener, OnlineR
 
         if (gameMode == GameMode.OFFLINE) {
             val evaluation = GameLogic.evaluateGuess(opponentSecret, guess, activeDigitCount)
-            recordMyGuess(evaluation)
             if (evaluation.isWin) {
-                finishGame(localWon = true)
-            } else {
+                localSolved = true
+            }
+            recordMyGuess(evaluation)
+            if (!checkEqualRoundResolution()) {
                 isLocalTurn = false
                 updateTurnUi()
                 scheduleBotGuess()
             }
         } else {
+            pendingGuessDigits = guess
             awaitingRemoteFeedback = true
             updateTurnUi()
             sendMultiplayerLine("GUESS|$guess")
@@ -966,20 +1041,33 @@ class MainActivity : AppCompatActivity(), BluetoothGameManager.Listener, OnlineR
     }
 
     private fun scheduleBotGuess() {
+        val activeGen = roundGeneration
+        val historySnapshot = opponentGuesses.toList()
+        val digitsCount = activeDigitCount
+        val secretSnapshot = mySecret
+
         mainHandler.postDelayed({
-            if (!isGameplayActive || isGameOver || isLocalTurn || gameMode != GameMode.OFFLINE) {
+            if (activeGen != roundGeneration || !isGameplayActive || isGameOver || isLocalTurn || gameMode != GameMode.OFFLINE) {
                 return@postDelayed
             }
-            val botGuess = GameLogic.generateBotGuess(opponentGuesses, activeDigitCount)
-            val evaluation = GameLogic.evaluateGuess(mySecret, botGuess, activeDigitCount)
-            recordOpponentGuess(evaluation)
-            if (evaluation.isWin) {
-                finishGame(localWon = false)
-            } else {
-                isLocalTurn = true
-                updateTurnUi()
+            botExecutor.execute {
+                val botGuess = GameLogic.generateBotGuess(historySnapshot, digitsCount)
+                val evaluation = GameLogic.evaluateGuess(secretSnapshot, botGuess, digitsCount)
+                mainHandler.post {
+                    if (activeGen != roundGeneration || !isGameplayActive || isGameOver || isLocalTurn || gameMode != GameMode.OFFLINE) {
+                        return@post
+                    }
+                    if (evaluation.isWin) {
+                        remoteSolved = true
+                    }
+                    recordOpponentGuess(evaluation)
+                    if (!checkEqualRoundResolution()) {
+                        isLocalTurn = true
+                        updateTurnUi()
+                    }
+                }
             }
-        }, 650L)
+        }, 350L)
     }
 
     private fun recordMyGuess(evaluation: GameLogic.GuessEvaluation) {
@@ -1009,26 +1097,45 @@ class MainActivity : AppCompatActivity(), BluetoothGameManager.Listener, OnlineR
 
     private fun refreshGuessList() {
         val list = if (activeTabIndex == 0) myGuesses else opponentGuesses
-        guessAdapter.submitList(list)
+        val rows = list.mapIndexed { index, evaluation ->
+            GuessRowItem(turnNumber = list.size - index, evaluation = evaluation)
+        }
+        guessAdapter.submitList(rows) {
+            if (rows.isNotEmpty()) {
+                binding.rvGuesses.scrollToPosition(0)
+            }
+        }
         binding.tvEmptyHistory.visibility = if (list.isEmpty()) View.VISIBLE else View.GONE
     }
 
-    private fun finishGame(localWon: Boolean) {
+    private fun finishGame(
+        outcome: GameLogic.MatchOutcome,
+        customTitle: String? = null
+    ) {
         if (isGameOver) return
         isGameOver = true
         awaitingRemoteFeedback = false
+        pendingGuessDigits = ""
         mainHandler.removeCallbacksAndMessages(null)
+        exitConfirmDialog?.dismiss()
+        exitConfirmDialog = null
 
-        if (localWon) {
-            localSessionWins += 1
-        } else {
-            opponentSessionWins += 1
+        when (outcome) {
+            GameLogic.MatchOutcome.LOCAL_WIN -> {
+                localSessionWins += 1
+                playerPrefs.recordGameResult(won = true)
+            }
+            GameLogic.MatchOutcome.OPPONENT_WIN -> {
+                opponentSessionWins += 1
+                playerPrefs.recordGameResult(won = false)
+            }
+            GameLogic.MatchOutcome.DRAW -> {
+                playerPrefs.recordGameResult(won = false)
+            }
         }
-
-        playerPrefs.recordGameResult(localWon)
         refreshProfileUi()
 
-        if (gameMode != GameMode.OFFLINE && !secretRevealSent) {
+        if (gameMode != GameMode.OFFLINE && !secretRevealSent && mySecret.isNotEmpty()) {
             secretRevealSent = true
             sendMultiplayerLine("REVEAL|$mySecret")
         }
@@ -1036,12 +1143,21 @@ class MainActivity : AppCompatActivity(), BluetoothGameManager.Listener, OnlineR
         binding.layoutGuessInput.visibility = View.GONE
         binding.layoutGameOver.visibility = View.VISIBLE
 
-        if (localWon) {
-            binding.tvGameOverTitle.text = "You Won Match $roundNumber in ${myGuesses.size} guesses!"
-            binding.tvGameOverTitle.setTextColor(ContextCompat.getColor(this, R.color.success))
-        } else {
-            binding.tvGameOverTitle.text = "$opponentName Won Match $roundNumber!"
-            binding.tvGameOverTitle.setTextColor(ContextCompat.getColor(this, R.color.danger))
+        when (outcome) {
+            GameLogic.MatchOutcome.LOCAL_WIN -> {
+                binding.tvGameOverTitle.text = customTitle
+                    ?: "You Won Match $roundNumber in ${myGuesses.size} guesses!"
+                binding.tvGameOverTitle.setTextColor(ContextCompat.getColor(this, R.color.success))
+            }
+            GameLogic.MatchOutcome.OPPONENT_WIN -> {
+                binding.tvGameOverTitle.text = customTitle ?: "$opponentName Won Match $roundNumber!"
+                binding.tvGameOverTitle.setTextColor(ContextCompat.getColor(this, R.color.danger))
+            }
+            GameLogic.MatchOutcome.DRAW -> {
+                binding.tvGameOverTitle.text = customTitle
+                    ?: "Match $roundNumber is a Draw! (Both solved in ${myGuesses.size})"
+                binding.tvGameOverTitle.setTextColor(ContextCompat.getColor(this, R.color.warning))
+            }
         }
 
         val isSessionFinished = roundNumber >= activeSessionMatches
@@ -1073,8 +1189,59 @@ class MainActivity : AppCompatActivity(), BluetoothGameManager.Listener, OnlineR
     }
 
     private fun updateRevealedSecretsLabel() {
-        val oppDisplay = opponentSecret.ifEmpty { "Waiting…" }
-        binding.tvRevealedSecrets.text = "Your Secret: $mySecret  •  $opponentName's Secret: $oppDisplay"
+        val myDisplay = mySecret.ifEmpty { "Not locked" }
+        val oppDisplay = opponentSecret.ifEmpty { "Hidden" }
+        binding.tvRevealedSecrets.text = "Your Secret: $myDisplay  •  $opponentName's Secret: $oppDisplay"
+    }
+
+    private fun requestExitMatch() {
+        if (currentScreen == ScreenState.LOBBY) return
+        if (currentScreen == ScreenState.GAME && isGameOver) {
+            leaveMatchToLobby()
+            return
+        }
+
+        exitConfirmDialog?.dismiss()
+        val message = "Your opponent ($opponentName) wins if you exit now."
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle("Exit Match?")
+            .setMessage(message)
+            .setPositiveButton("Continue") { d, _ -> d.dismiss() }
+            .setNegativeButton("Exit") { d, _ ->
+                d.dismiss()
+                forfeitAndLeaveMatch()
+            }
+            .create()
+        dialog.setOnDismissListener {
+            if (exitConfirmDialog == dialog) exitConfirmDialog = null
+        }
+        exitConfirmDialog = dialog
+        dialog.show()
+    }
+
+    private fun forfeitAndLeaveMatch() {
+        if (!isGameOver && (isGameplayActive || localReady)) {
+            playerPrefs.recordGameResult(won = false)
+        }
+        mainHandler.removeCallbacksAndMessages(null)
+        roundGeneration += 1
+        isGameplayActive = false
+        isGameOver = false
+
+        when (gameMode) {
+            GameMode.BLUETOOTH -> bluetoothManager.disconnectGracefully("FORFEIT")
+            GameMode.ONLINE -> onlineRoomManager.disconnectGracefully("FORFEIT")
+            GameMode.OFFLINE -> Unit
+        }
+        hostWaitingDialog?.dismiss()
+        hostWaitingDialog = null
+        onlineDialog?.dismiss()
+        onlineDialog = null
+        exitConfirmDialog?.dismiss()
+        exitConfirmDialog = null
+        binding.tvLobbyStatus.visibility = View.GONE
+        refreshProfileUi()
+        showScreen(ScreenState.LOBBY)
     }
 
     private fun handlePlayAgainTapped() {
@@ -1109,6 +1276,7 @@ class MainActivity : AppCompatActivity(), BluetoothGameManager.Listener, OnlineR
 
     private fun leaveMatchToLobby() {
         mainHandler.removeCallbacksAndMessages(null)
+        roundGeneration += 1
         isGameplayActive = false
         isGameOver = false
         bluetoothManager.disconnect()
@@ -1117,6 +1285,8 @@ class MainActivity : AppCompatActivity(), BluetoothGameManager.Listener, OnlineR
         hostWaitingDialog = null
         onlineDialog?.dismiss()
         onlineDialog = null
+        exitConfirmDialog?.dismiss()
+        exitConfirmDialog = null
         binding.tvLobbyStatus.visibility = View.GONE
         refreshProfileUi()
         showScreen(ScreenState.LOBBY)
@@ -1344,9 +1514,11 @@ class MainActivity : AppCompatActivity(), BluetoothGameManager.Listener, OnlineR
     override fun onRoomDisconnected(reason: String) {
         onlineDialog?.dismiss()
         onlineDialog = null
+        exitConfirmDialog?.dismiss()
+        exitConfirmDialog = null
         binding.tvLobbyStatus.visibility = View.GONE
         if (currentScreen != ScreenState.LOBBY && gameMode == GameMode.ONLINE) {
-            Toast.makeText(this, reason, Toast.LENGTH_LONG).show()
+            showDisconnectAlert(reason)
             leaveMatchToLobby()
         }
     }
@@ -1379,15 +1551,12 @@ class MainActivity : AppCompatActivity(), BluetoothGameManager.Listener, OnlineR
                 }
             }
             is GameLogic.ProtocolMessage.Config -> {
-                if (!isHost) {
+                if (!isHost && !isGameplayActive && !localReady) {
                     activeDigitCount = message.digitCount
                     activeSessionMatches = message.sessionMatches
                     applyDigitCountToInputs()
                     if (currentScreen == ScreenState.SETUP) {
                         binding.tvSetupSessionScore.text = sessionLeadText()
-                    } else if (currentScreen == ScreenState.GAME) {
-                        updateTurnUi()
-                        updateSecretPeekUi()
                     }
                 }
             }
@@ -1400,26 +1569,32 @@ class MainActivity : AppCompatActivity(), BluetoothGameManager.Listener, OnlineR
             is GameLogic.ProtocolMessage.Guess -> {
                 if (!isGameplayActive || isGameOver || isLocalTurn) return
                 val evaluation = GameLogic.evaluateGuess(mySecret, message.digits, activeDigitCount)
+                if (evaluation.isWin) {
+                    remoteSolved = true
+                }
                 recordOpponentGuess(evaluation)
                 val codes = GameLogic.encodeFeedbackCodes(evaluation.results)
                 sendMultiplayerLine("FEEDBACK|${message.digits}|$codes")
                 if (evaluation.isWin) {
                     opponentSecret = message.digits
-                    finishGame(localWon = false)
-                } else {
+                }
+                if (!checkEqualRoundResolution()) {
                     isLocalTurn = true
                     updateTurnUi()
                 }
             }
             is GameLogic.ProtocolMessage.Feedback -> {
                 if (!isGameplayActive || isGameOver || !awaitingRemoteFeedback) return
+                if (pendingGuessDigits.isNotEmpty() && message.digits != pendingGuessDigits) return
                 val evaluation = GameLogic.decodeFeedback(message.digits, message.codesCsv, activeDigitCount) ?: return
                 awaitingRemoteFeedback = false
-                recordMyGuess(evaluation)
+                pendingGuessDigits = ""
                 if (evaluation.isWin) {
+                    localSolved = true
                     opponentSecret = message.digits
-                    finishGame(localWon = true)
-                } else {
+                }
+                recordMyGuess(evaluation)
+                if (!checkEqualRoundResolution()) {
                     isLocalTurn = false
                     updateTurnUi()
                 }
@@ -1441,17 +1616,40 @@ class MainActivity : AppCompatActivity(), BluetoothGameManager.Listener, OnlineR
                     binding.tvPlayAgainStatus.visibility = View.VISIBLE
                 }
             }
+            is GameLogic.ProtocolMessage.Forfeit -> {
+                if (currentScreen == ScreenState.LOBBY || isGameOver) return
+                exitConfirmDialog?.dismiss()
+                exitConfirmDialog = null
+                if (currentScreen == ScreenState.SETUP) {
+                    showScreen(ScreenState.GAME)
+                }
+                finishGame(
+                    outcome = GameLogic.MatchOutcome.LOCAL_WIN,
+                    customTitle = "$opponentName exited — You Win Match $roundNumber!"
+                )
+            }
         }
     }
 
     override fun onDisconnected(reason: String) {
         hostWaitingDialog?.dismiss()
         hostWaitingDialog = null
+        exitConfirmDialog?.dismiss()
+        exitConfirmDialog = null
         binding.tvLobbyStatus.visibility = View.GONE
         if (currentScreen != ScreenState.LOBBY && gameMode == GameMode.BLUETOOTH) {
-            Toast.makeText(this, reason, Toast.LENGTH_LONG).show()
+            showDisconnectAlert(reason)
             leaveMatchToLobby()
         }
+    }
+
+    private fun showDisconnectAlert(reason: String) {
+        if (isFinishing || isDestroyed) return
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Match Disconnected")
+            .setMessage("$reason\n\nReturning to the Lobby.")
+            .setPositiveButton("OK", null)
+            .show()
     }
 
     override fun onError(message: String) {
@@ -1473,22 +1671,20 @@ class MainActivity : AppCompatActivity(), BluetoothGameManager.Listener, OnlineR
         hostWaitingDialog?.dismiss()
         joinDialog?.dismiss()
         onlineDialog?.dismiss()
+        exitConfirmDialog?.dismiss()
         bluetoothManager.shutdown()
         onlineRoomManager.shutdown()
+        botExecutor.shutdownNow()
     }
 
     // --- RecyclerView Adapter for Guess History ---
 
-    private class GuessAdapter : RecyclerView.Adapter<GuessAdapter.GuessViewHolder>() {
+    private data class GuessRowItem(
+        val turnNumber: Int,
+        val evaluation: GameLogic.GuessEvaluation
+    )
 
-        private val items = mutableListOf<GameLogic.GuessEvaluation>()
-
-        @SuppressLint("NotifyDataSetChanged")
-        fun submitList(newItems: List<GameLogic.GuessEvaluation>) {
-            items.clear()
-            items.addAll(newItems)
-            notifyDataSetChanged()
-        }
+    private class GuessAdapter : ListAdapter<GuessRowItem, GuessAdapter.GuessViewHolder>(DiffCallback) {
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): GuessViewHolder {
             val binding = ItemGuessRowBinding.inflate(
@@ -1500,12 +1696,9 @@ class MainActivity : AppCompatActivity(), BluetoothGameManager.Listener, OnlineR
         }
 
         override fun onBindViewHolder(holder: GuessViewHolder, position: Int) {
-            // Newest-first list: top row corresponds to total item count.
-            val turnNumber = items.size - position
-            holder.bind(items[position], turnNumber)
+            val row = getItem(position)
+            holder.bind(row.evaluation, row.turnNumber)
         }
-
-        override fun getItemCount(): Int = items.size
 
         class GuessViewHolder(
             private val binding: ItemGuessRowBinding
@@ -1541,6 +1734,14 @@ class MainActivity : AppCompatActivity(), BluetoothGameManager.Listener, OnlineR
                     }
                 }
             }
+        }
+
+        private object DiffCallback : DiffUtil.ItemCallback<GuessRowItem>() {
+            override fun areItemsTheSame(oldItem: GuessRowItem, newItem: GuessRowItem): Boolean =
+                oldItem.turnNumber == newItem.turnNumber && oldItem.evaluation.guess == newItem.evaluation.guess
+
+            override fun areContentsTheSame(oldItem: GuessRowItem, newItem: GuessRowItem): Boolean =
+                oldItem == newItem
         }
     }
 }

@@ -108,6 +108,31 @@ class BluetoothGameManager(
     }
 
     @Synchronized
+    fun disconnectGracefully(finalMessage: String) {
+        val thread = connectedThread
+        if (thread == null) {
+            disconnect()
+            return
+        }
+        intentionalClose = true
+        currentState = State.IDLE
+        val sanitized = finalMessage.replace("\r", "").replace("\n", " ")
+        writeExecutor.execute {
+            thread.writeLine(sanitized)
+            try {
+                Thread.sleep(80L)
+            } catch (_: InterruptedException) {
+            }
+            thread.cancel()
+        }
+        acceptThread?.cancel()
+        acceptThread = null
+        connectThread?.cancel()
+        connectThread = null
+        connectedThread = null
+    }
+
+    @Synchronized
     fun disconnect() {
         closeActiveThreads(notifyDisconnect = false)
         currentState = State.IDLE
