@@ -1,28 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Digit Duel</string>
-    <string name="app_subtitle">Crack the secret code before your rival!</string>
+    <string name="app_subtitle">Crack the secret code</string>
 
-    <string name="player_profile_title">Player Card</string>
-    <string name="player_name_hint">Player Name</string>
+    <string name="player_profile_title">Player</string>
+    <string name="player_name_hint">Your Name</string>
     <string name="save_name">Save</string>
     <string name="stats_format">%1$d Wins  •  %2$d Matches</string>
 
-    <string name="match_settings_title">Match Rules</string>
-    <string name="digit_count_label">Secret Length</string>
-    <string name="session_matches_label">Session Matches</string>
+    <string name="match_settings_title">Session Rules</string>
+    <string name="digit_count_label">Digits</string>
+    <string name="session_matches_label">Matches per Session</string>
 
-    <string name="play_mode_title">Choose Arena</string>
-    <string name="create_online_room">Create Room (Online)</string>
-    <string name="join_online_room">Join Room (Code)</string>
-    <string name="host_bluetooth">Host Nearby Duel</string>
-    <string name="join_bluetooth">Join Nearby Duel</string>
-    <string name="practice_offline">Solo Practice vs Bot</string>
+    <string name="play_mode_title">Play</string>
+    <string name="play_online">Online</string>
+    <string name="play_bluetooth">Bluetooth</string>
+    <string name="practice_offline">Practice vs Bot</string>
 
     <string name="how_to_play_title">Tile Guide</string>
-    <string name="how_to_play_rules">Pick a secret number with unique digits (leading zeros allowed). Outsmart your rival turn by turn!</string>
+    <string name="how_to_play_rules">Pick a secret number with unique digits (leading zeros allowed). Outsmart your rival turn by turn.</string>
     <string name="legend_correct">Green — Right digit, exact spot</string>
-    <string name="legend_wrong">Amber — Right digit, wrong spot</string>
+    <string name="legend_wrong">Yellow — Right digit, wrong spot</string>
     <string name="legend_absent">Gray — Not in the secret</string>
 
     <string name="setup_title">Lock Your Secret</string>

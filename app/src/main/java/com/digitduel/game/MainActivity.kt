@@ -248,27 +248,39 @@ class MainActivity : AppCompatActivity(), BluetoothGameManager.Listener, OnlineR
             Toast.makeText(this, "Saved name: $saved", Toast.LENGTH_SHORT).show()
         }
 
-        binding.btnCreateOnlineRoom.setOnClickListener {
+        binding.btnPlayOnline.setOnClickListener {
             savePlayerNameSilently()
-            bluetoothManager.disconnect()
-            onlineRoomManager.createRoom(playerPrefs.getPlayerName())
+            showHostOrJoinDialog(
+                title = "Online Match",
+                subtitle = "Create a 6-character room code or join a friend's room.",
+                hostLabel = "Host (Create Room)",
+                joinLabel = "Join (Enter Code)",
+                onHost = {
+                    bluetoothManager.disconnect()
+                    onlineRoomManager.createRoom(playerPrefs.getPlayerName())
+                },
+                onJoin = {
+                    showJoinOnlineRoomDialog()
+                }
+            )
         }
 
-        binding.btnJoinOnlineRoom.setOnClickListener {
+        binding.btnPlayBluetooth.setOnClickListener {
             savePlayerNameSilently()
-            showJoinOnlineRoomDialog()
-        }
-
-        binding.btnHostBluetooth.setOnClickListener {
-            savePlayerNameSilently()
-            onlineRoomManager.disconnect()
-            startBluetoothFlow(PendingBluetoothAction.HOST)
-        }
-
-        binding.btnJoinBluetooth.setOnClickListener {
-            savePlayerNameSilently()
-            onlineRoomManager.disconnect()
-            startBluetoothFlow(PendingBluetoothAction.JOIN)
+            showHostOrJoinDialog(
+                title = "Bluetooth Match",
+                subtitle = "Host a nearby game or connect to a nearby phone.",
+                hostLabel = "Host Nearby",
+                joinLabel = "Join Nearby",
+                onHost = {
+                    onlineRoomManager.disconnect()
+                    startBluetoothFlow(PendingBluetoothAction.HOST)
+                },
+                onJoin = {
+                    onlineRoomManager.disconnect()
+                    startBluetoothFlow(PendingBluetoothAction.JOIN)
+                }
+            )
         }
 
         binding.btnPracticeOffline.setOnClickListener {
@@ -277,10 +289,88 @@ class MainActivity : AppCompatActivity(), BluetoothGameManager.Listener, OnlineR
         }
     }
 
+    private fun showHostOrJoinDialog(
+        title: String,
+        subtitle: String,
+        hostLabel: String,
+        joinLabel: String,
+        onHost: () -> Unit,
+        onJoin: () -> Unit
+    ) {
+        onlineDialog?.dismiss()
+        val density = resources.displayMetrics.density
+        val pad = (20 * density).toInt()
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(pad, (8 * density).toInt(), pad, (4 * density).toInt())
+        }
+
+        var dialog: AlertDialog? = null
+
+        val hostBtn = MaterialButton(this).apply {
+            text = hostLabel
+            isAllCaps = false
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.on_accent))
+            backgroundTintList = ColorStateList.valueOf(
+                ContextCompat.getColor(this@MainActivity, R.color.accent_primary)
+            )
+            cornerRadius = (12 * density).toInt()
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                (50 * density).toInt()
+            ).apply {
+                bottomMargin = (10 * density).toInt()
+            }
+            setOnClickListener {
+                dialog?.dismiss()
+                onHost()
+            }
+        }
+
+        val joinBtn = MaterialButton(
+            this,
+            null,
+            com.google.android.material.R.attr.materialButtonOutlinedStyle
+        ).apply {
+            text = joinLabel
+            isAllCaps = false
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_primary))
+            strokeColor = ColorStateList.valueOf(
+                ContextCompat.getColor(this@MainActivity, R.color.accent_secondary)
+            )
+            strokeWidth = (1.5f * density).toInt()
+            cornerRadius = (12 * density).toInt()
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                (50 * density).toInt()
+            )
+            setOnClickListener {
+                dialog?.dismiss()
+                onJoin()
+            }
+        }
+
+        container.addView(hostBtn)
+        container.addView(joinBtn)
+
+        dialog = MaterialAlertDialogBuilder(this)
+            .setTitle(title)
+            .setMessage(subtitle)
+            .setView(container)
+            .setNegativeButton("Cancel") { d, _ -> d.dismiss() }
+            .create()
+
+        dialog.setOnDismissListener {
+            if (onlineDialog == dialog) onlineDialog = null
+        }
+        onlineDialog = dialog
+        dialog.show()
+    }
+
     private fun updateRuleChipStyles() {
         val selectedBg = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.accent_primary))
         val unselectedBg = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.bg_input))
-        val selectedText = ContextCompat.getColor(this, R.color.bg_screen)
+        val selectedText = ContextCompat.getColor(this, R.color.on_accent)
         val unselectedText = ContextCompat.getColor(this, R.color.text_primary)
 
         val digitButtons = mapOf(

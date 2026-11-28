@@ -1,26 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="bg_screen">#0B1120</color>
-    <color name="bg_card">#162033</color>
-    <color name="bg_input">#090F1D</color>
-    <color name="stroke_card">#2B3B55</color>
+    <!-- Minimalist Claude-inspired warm cream & terracotta palette -->
+    <color name="bg_screen">#FAF8F5</color>
+    <color name="bg_card">#FFFFFF</color>
+    <color name="bg_input">#F2EEE6</color>
+    <color name="stroke_card">#E5DEC9</color>
 
-    <color name="text_primary">#F8FAFC</color>
-    <color name="text_secondary">#94A3B8</color>
+    <color name="text_primary">#1C1917</color>
+    <color name="text_secondary">#78716C</color>
 
-    <color name="accent_primary">#38BDF8</color>
-    <color name="accent_primary_dark">#0284C7</color>
-    <color name="accent_secondary">#818CF8</color>
-    <color name="pill_bg">#13233F</color>
+    <color name="accent_primary">#D97757</color>
+    <color name="accent_primary_dark">#C25E3E</color>
+    <color name="accent_secondary">#292524</color>
+    <color name="on_accent">#FFFFFF</color>
+    <color name="pill_bg">#F2EEE6</color>
 
-    <color name="digit_correct">#16A34A</color>
-    <color name="digit_correct_stroke">#4ADE80</color>
-    <color name="digit_wrong_place">#D97706</color>
-    <color name="digit_wrong_place_stroke">#FBBF24</color>
-    <color name="digit_absent">#334155</color>
-    <color name="digit_absent_stroke">#475569</color>
+    <!-- Indication-only colors (digit feedback & win/turn states) -->
+    <color name="digit_correct">#15803D</color>
+    <color name="digit_correct_stroke">#16A34A</color>
+    <color name="digit_wrong_place">#CA8A04</color>
+    <color name="digit_wrong_place_stroke">#EAB308</color>
+    <color name="digit_absent">#78716C</color>
+    <color name="digit_absent_stroke">#A8A29E</color>
 
-    <color name="danger">#F43F5E</color>
-    <color name="success">#22C55E</color>
-    <color name="warning">#FBBF24</color>
+    <color name="danger">#DC2626</color>
+    <color name="success">#15803D</color>
+    <color name="warning">#CA8A04</color>
 </resources>
