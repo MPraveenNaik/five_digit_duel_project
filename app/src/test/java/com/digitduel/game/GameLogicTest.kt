@@ -123,13 +123,13 @@ class GameLogicTest {
     fun generateRandomSecret_andBotGuess_alwaysProduceValidNumbersConsistentWithHistory() {
         val rng = Random(42)
         repeat(25) {
-            val secret = GameLogic.generateRandomSecret(rng)
+            val secret = GameLogic.generateRandomSecret(random = rng)
             assertTrue(GameLogic.isValidNumber(secret))
         }
 
         val target = "54612"
         val firstEval = GameLogic.evaluateGuess(target, "43716")
-        val secondGuess = GameLogic.generateBotGuess(listOf(firstEval), rng)
+        val secondGuess = GameLogic.generateBotGuess(listOf(firstEval), random = rng)
         assertTrue(GameLogic.isValidNumber(secondGuess))
         // Must preserve '1' at index 3, include '4' and '6' not at indices 0/4, and exclude '3' and '7'.
         assertEquals('1', secondGuess[3])
