@@ -178,12 +178,12 @@ class BluetoothGameManager(
             val server = try {
                 btAdapter.listenUsingRfcommWithServiceRecord(SERVICE_NAME, GAME_UUID)
             } catch (e: SecurityException) {
-                currentState = State.IDLE
+                currentState = BluetoothGameManager.State.IDLE
                 postError("Bluetooth permission missing while hosting.")
                 return
             } catch (e: IOException) {
                 if (!intentionalClose) {
-                    currentState = State.IDLE
+                    currentState = BluetoothGameManager.State.IDLE
                     postError("Failed to start Bluetooth server: ${e.message ?: "I/O error"}")
                 }
                 return
@@ -195,7 +195,7 @@ class BluetoothGameManager(
                 server.accept()
             } catch (e: IOException) {
                 if (!intentionalClose) {
-                    currentState = State.IDLE
+                    currentState = BluetoothGameManager.State.IDLE
                     postError("Hosting stopped or failed while waiting for player.")
                 }
                 null
@@ -238,12 +238,12 @@ class BluetoothGameManager(
             val clientSocket = try {
                 device.createRfcommSocketToServiceRecord(GAME_UUID)
             } catch (e: SecurityException) {
-                currentState = State.IDLE
+                currentState = BluetoothGameManager.State.IDLE
                 postError("Bluetooth permission missing while connecting.")
                 return
             } catch (e: IOException) {
                 if (!intentionalClose) {
-                    currentState = State.IDLE
+                    currentState = BluetoothGameManager.State.IDLE
                     postError("Unable to create Bluetooth socket: ${e.message ?: "I/O error"}")
                 }
                 return
@@ -258,7 +258,7 @@ class BluetoothGameManager(
                 } catch (_: IOException) {
                 }
                 if (!intentionalClose) {
-                    currentState = State.IDLE
+                    currentState = BluetoothGameManager.State.IDLE
                     postError("Could not connect to ${safeDeviceName(device)}. Make sure the host is waiting.")
                 }
                 return
@@ -267,7 +267,7 @@ class BluetoothGameManager(
                     clientSocket.close()
                 } catch (_: IOException) {
                 }
-                currentState = State.IDLE
+                currentState = BluetoothGameManager.State.IDLE
                 postError("Bluetooth permission denied while connecting.")
                 return
             }
