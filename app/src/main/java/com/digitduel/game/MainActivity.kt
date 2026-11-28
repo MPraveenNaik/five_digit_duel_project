@@ -5,6 +5,8 @@ import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.content.BroadcastReceiver
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -13,12 +15,16 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.text.InputFilter
+import android.text.InputType
+import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.ArrayAdapter
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.ProgressBar
@@ -39,9 +45,9 @@ import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.tabs.TabLayout
 
-class MainActivity : AppCompatActivity(), BluetoothGameManager.Listener {
+class MainActivity : AppCompatActivity(), BluetoothGameManager.Listener, OnlineRoomManager.Listener {
 
-    private enum class GameMode { BLUETOOTH, OFFLINE }
+    private enum class GameMode { BLUETOOTH, ONLINE, OFFLINE }
     private enum class ScreenState { LOBBY, SETUP, GAME }
     private enum class PendingBluetoothAction { NONE, HOST, JOIN }
 
@@ -55,6 +61,7 @@ class MainActivity : AppCompatActivity(), BluetoothGameManager.Listener {
     private lateinit var binding: ActivityMainBinding
     private lateinit var playerPrefs: PlayerPrefs
     private lateinit var bluetoothManager: BluetoothGameManager
+    private lateinit var onlineRoomManager: OnlineRoomManager
     private lateinit var guessAdapter: GuessAdapter
 
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -84,10 +91,11 @@ class MainActivity : AppCompatActivity(), BluetoothGameManager.Listener {
     private val opponentGuesses = mutableListOf<GameLogic.GuessEvaluation>()
     private var activeTabIndex = 0 // 0 = Your Guesses, 1 = Opponent's Guesses
 
-    // Bluetooth UI state
+    // Bluetooth & Online UI state
     private var pendingBluetoothAction = PendingBluetoothAction.NONE
     private var hostWaitingDialog: AlertDialog? = null
     private var joinDialog: AlertDialog? = null
+    private var onlineDialog: AlertDialog? = null
     private var discoveryReceiverRegistered = false
     private val discoveredDevices = mutableListOf<DiscoveredDevice>()
     private var deviceListAdapter: ArrayAdapter<String>? = null
@@ -169,6 +177,7 @@ class MainActivity : AppCompatActivity(), BluetoothGameManager.Listener {
 
         playerPrefs = PlayerPrefs(this)
         bluetoothManager = BluetoothGameManager(this, this)
+        onlineRoomManager = OnlineRoomManager(this)
         guessAdapter = GuessAdapter()
 
         setupLobbyUi()
@@ -204,13 +213,26 @@ class MainActivity : AppCompatActivity(), BluetoothGameManager.Listener {
             Toast.makeText(this, "Saved name: $saved", Toast.LENGTH_SHORT).show()
         }
 
+        binding.btnCreateOnlineRoom.setOnClickListener {
+            savePlayerNameSilently()
+            bluetoothManager.disconnect()
+            onlineRoomManager.createRoom(playerPrefs.getPlayerName())
+        }
+
+        binding.btnJoinOnlineRoom.setOnClickListener {
+            savePlayerNameSilently()
+            showJoinOnlineRoomDialog()
+        }
+
         binding.btnHostBluetooth.setOnClickListener {
             savePlayerNameSilently()
+            onlineRoomManager.disconnect()
             startBluetoothFlow(PendingBluetoothAction.HOST)
         }
 
         binding.btnJoinBluetooth.setOnClickListener {
             savePlayerNameSilently()
+            onlineRoomManager.disconnect()
             startBluetoothFlow(PendingBluetoothAction.JOIN)
         }
 
@@ -576,11 +598,20 @@ class MainActivity : AppCompatActivity(), BluetoothGameManager.Listener {
 
     private fun startOfflinePractice() {
         bluetoothManager.disconnect()
+        onlineRoomManager.disconnect()
         gameMode = GameMode.OFFLINE
         isHost = true
         opponentName = "Phone Bot"
         roundNumber = 1
         prepareRoundSetup()
+    }
+
+    private fun sendMultiplayerLine(line: String) {
+        when (gameMode) {
+            GameMode.BLUETOOTH -> bluetoothManager.sendLine(line)
+            GameMode.ONLINE -> onlineRoomManager.sendLine(line)
+            GameMode.OFFLINE -> Unit
+        }
     }
 
     private fun prepareRoundSetup() {
@@ -638,7 +669,7 @@ class MainActivity : AppCompatActivity(), BluetoothGameManager.Listener {
                 } else {
                     binding.tvWaitingOpponent.text = getString(R.string.waiting_opponent, opponentName)
                     binding.layoutWaitingOpponent.visibility = View.VISIBLE
-                    bluetoothManager.sendLine("READY")
+                    sendMultiplayerLine("READY")
                     if (remoteReady) {
                         startGameplay()
                     }
@@ -750,7 +781,7 @@ class MainActivity : AppCompatActivity(), BluetoothGameManager.Listener {
         } else {
             awaitingRemoteFeedback = true
             updateTurnUi()
-            bluetoothManager.sendLine("GUESS|$guess")
+            sendMultiplayerLine("GUESS|$guess")
         }
     }
 
@@ -811,9 +842,9 @@ class MainActivity : AppCompatActivity(), BluetoothGameManager.Listener {
         playerPrefs.recordGameResult(localWon)
         refreshProfileUi()
 
-        if (gameMode == GameMode.BLUETOOTH && !secretRevealSent) {
+        if (gameMode != GameMode.OFFLINE && !secretRevealSent) {
             secretRevealSent = true
-            bluetoothManager.sendLine("REVEAL|$mySecret")
+            sendMultiplayerLine("REVEAL|$mySecret")
         }
 
         binding.layoutGuessInput.visibility = View.GONE
@@ -849,14 +880,14 @@ class MainActivity : AppCompatActivity(), BluetoothGameManager.Listener {
         binding.btnPlayAgain.text = "Waiting…"
         binding.tvPlayAgainStatus.text = "Waiting for $opponentName to accept Play Again…"
         binding.tvPlayAgainStatus.visibility = View.VISIBLE
-        bluetoothManager.sendLine("PLAY_AGAIN")
+        sendMultiplayerLine("PLAY_AGAIN")
 
         if (remotePlayAgainReceived) {
-            beginNextBluetoothRound()
+            beginNextMultiplayerRound()
         }
     }
 
-    private fun beginNextBluetoothRound() {
+    private fun beginNextMultiplayerRound() {
         roundNumber += 1
         prepareRoundSetup()
     }
@@ -866,8 +897,11 @@ class MainActivity : AppCompatActivity(), BluetoothGameManager.Listener {
         isGameplayActive = false
         isGameOver = false
         bluetoothManager.disconnect()
+        onlineRoomManager.disconnect()
         hostWaitingDialog?.dismiss()
         hostWaitingDialog = null
+        onlineDialog?.dismiss()
+        onlineDialog = null
         binding.tvLobbyStatus.visibility = View.GONE
         refreshProfileUi()
         showScreen(ScreenState.LOBBY)
@@ -914,6 +948,188 @@ class MainActivity : AppCompatActivity(), BluetoothGameManager.Listener {
     }
 
     override fun onMessageReceived(line: String) {
+        if (gameMode != GameMode.BLUETOOTH) return
+        handleRemoteMessage(line)
+    }
+
+    // --- OnlineRoomManager Dialogs & Listener ---
+
+    private fun showJoinOnlineRoomDialog() {
+        onlineDialog?.dismiss()
+        val density = resources.displayMetrics.density
+        val pad = (16 * density).toInt()
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(pad, pad / 2, pad, pad / 2)
+        }
+        val input = EditText(this).apply {
+            hint = "Enter 6-character room code"
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
+            filters = arrayOf(InputFilter.LengthFilter(GameLogic.ROOM_CODE_LENGTH))
+            gravity = Gravity.CENTER
+            textSize = 22f
+            letterSpacing = 0.2f
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_primary))
+            setHintTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_secondary))
+        }
+        container.addView(input)
+
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle("Join Online Room")
+            .setMessage("Enter the 6-character Room Code shared by your friend.")
+            .setView(container)
+            .setPositiveButton("Join", null)
+            .setNegativeButton("Cancel") { d, _ -> d.dismiss() }
+            .create()
+
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val code = GameLogic.normalizeRoomCode(input.text?.toString().orEmpty())
+                if (!GameLogic.isValidRoomCode(code)) {
+                    input.error = "Enter a 6-character room code."
+                    return@setOnClickListener
+                }
+                hideKeyboard(input)
+                dialog.dismiss()
+                onlineDialog = null
+                bluetoothManager.disconnect()
+                onlineRoomManager.joinRoom(code, playerPrefs.getPlayerName())
+            }
+        }
+        dialog.setOnDismissListener {
+            if (onlineDialog == dialog) onlineDialog = null
+        }
+        onlineDialog = dialog
+        dialog.show()
+    }
+
+    override fun onRoomCreating() {
+        onlineDialog?.dismiss()
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle("Creating Room")
+            .setMessage("Connecting to online game server…")
+            .setCancelable(false)
+            .setNegativeButton("Cancel") { d, _ ->
+                onlineRoomManager.disconnect()
+                d.dismiss()
+            }
+            .create()
+        onlineDialog = dialog
+        dialog.show()
+    }
+
+    override fun onRoomCreated(roomCode: String) {
+        onlineDialog?.dismiss()
+        val density = resources.displayMetrics.density
+        val pad = (16 * density).toInt()
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(pad, pad / 2, pad, pad / 2)
+        }
+        val codeTv = TextView(this).apply {
+            text = roomCode
+            textSize = 30f
+            letterSpacing = 0.25f
+            gravity = Gravity.CENTER
+            setTextIsSelectable(true)
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.accent_primary))
+            setPadding(0, (8 * density).toInt(), 0, (12 * density).toInt())
+        }
+        val infoTv = TextView(this).apply {
+            text = "Share this code with your friend and keep this screen open until they join."
+            textSize = 13f
+            gravity = Gravity.CENTER
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_secondary))
+        }
+        container.addView(codeTv)
+        container.addView(infoTv)
+
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle("Room Ready")
+            .setView(container)
+            .setCancelable(false)
+            .setPositiveButton("Share", null)
+            .setNeutralButton("Copy Code", null)
+            .setNegativeButton("Cancel") { d, _ ->
+                onlineRoomManager.disconnect()
+                d.dismiss()
+            }
+            .create()
+
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
+                val cm = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                cm?.setPrimaryClip(ClipData.newPlainText("Digit Duel Room Code", roomCode))
+                Toast.makeText(this, "Copied room code: $roomCode", Toast.LENGTH_SHORT).show()
+            }
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(
+                        Intent.EXTRA_TEXT,
+                        "Join my Digit Duel game! Open the app -> Join Room (Internet) -> Code: $roomCode"
+                    )
+                }
+                startActivity(Intent.createChooser(shareIntent, "Share Room Code"))
+            }
+        }
+        onlineDialog = dialog
+        dialog.show()
+    }
+
+    override fun onRoomJoining(roomCode: String) {
+        onlineDialog?.dismiss()
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle("Joining Room $roomCode")
+            .setMessage("Connecting to opponent…")
+            .setCancelable(false)
+            .setNegativeButton("Cancel") { d, _ ->
+                onlineRoomManager.disconnect()
+                d.dismiss()
+            }
+            .create()
+        onlineDialog = dialog
+        dialog.show()
+    }
+
+    override fun onRoomConnected(opponentName: String, isHost: Boolean) {
+        onlineDialog?.dismiss()
+        onlineDialog = null
+        binding.tvLobbyStatus.visibility = View.GONE
+
+        gameMode = GameMode.ONLINE
+        this.isHost = isHost
+        this.opponentName = opponentName.ifBlank { "Opponent" }
+        this.roundNumber = 1
+
+        onlineRoomManager.sendLine(GameLogic.formatHello(playerPrefs.getPlayerName()))
+        prepareRoundSetup()
+    }
+
+    override fun onRoomMessageReceived(line: String) {
+        if (gameMode != GameMode.ONLINE) return
+        handleRemoteMessage(line)
+    }
+
+    override fun onRoomDisconnected(reason: String) {
+        onlineDialog?.dismiss()
+        onlineDialog = null
+        binding.tvLobbyStatus.visibility = View.GONE
+        if (currentScreen != ScreenState.LOBBY && gameMode == GameMode.ONLINE) {
+            Toast.makeText(this, reason, Toast.LENGTH_LONG).show()
+            leaveMatchToLobby()
+        }
+    }
+
+    override fun onRoomError(message: String) {
+        onlineDialog?.dismiss()
+        onlineDialog = null
+        binding.tvLobbyStatus.visibility = View.GONE
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+    }
+
+    private fun handleRemoteMessage(line: String) {
         val message = GameLogic.parseProtocolLine(line) ?: return
         when (message) {
             is GameLogic.ProtocolMessage.Hello -> {
@@ -943,7 +1159,7 @@ class MainActivity : AppCompatActivity(), BluetoothGameManager.Listener {
                 val evaluation = GameLogic.evaluateGuess(mySecret, message.digits)
                 recordOpponentGuess(evaluation)
                 val codes = GameLogic.encodeFeedbackCodes(evaluation.results)
-                bluetoothManager.sendLine("FEEDBACK|${message.digits}|$codes")
+                sendMultiplayerLine("FEEDBACK|${message.digits}|$codes")
                 if (evaluation.isWin) {
                     opponentSecret = message.digits
                     finishGame(localWon = false)
@@ -975,7 +1191,7 @@ class MainActivity : AppCompatActivity(), BluetoothGameManager.Listener {
                 if (!isGameOver) return
                 remotePlayAgainReceived = true
                 if (localPlayAgainSent) {
-                    beginNextBluetoothRound()
+                    beginNextMultiplayerRound()
                 } else {
                     binding.tvPlayAgainStatus.text = "$opponentName wants to play again! Tap Play Again."
                     binding.tvPlayAgainStatus.visibility = View.VISIBLE
@@ -988,7 +1204,7 @@ class MainActivity : AppCompatActivity(), BluetoothGameManager.Listener {
         hostWaitingDialog?.dismiss()
         hostWaitingDialog = null
         binding.tvLobbyStatus.visibility = View.GONE
-        if (currentScreen != ScreenState.LOBBY) {
+        if (currentScreen != ScreenState.LOBBY && gameMode == GameMode.BLUETOOTH) {
             Toast.makeText(this, reason, Toast.LENGTH_LONG).show()
             leaveMatchToLobby()
         }
@@ -1012,7 +1228,9 @@ class MainActivity : AppCompatActivity(), BluetoothGameManager.Listener {
         cleanupJoinDiscovery()
         hostWaitingDialog?.dismiss()
         joinDialog?.dismiss()
+        onlineDialog?.dismiss()
         bluetoothManager.shutdown()
+        onlineRoomManager.shutdown()
     }
 
     // --- RecyclerView Adapter for Guess History ---

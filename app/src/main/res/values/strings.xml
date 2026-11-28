@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Digit Duel</string>
-    <string name="app_subtitle">5-Digit Bluetooth Number Battle</string>
+    <string name="app_subtitle">5-Digit Online &amp; Bluetooth Number Battle</string>
 
     <string name="player_profile_title">Player Profile</string>
     <string name="player_name_hint">Your Display Name</string>
@@ -9,6 +9,8 @@
     <string name="stats_format">Games Played: %1$d  •  Wins: %2$d</string>
 
     <string name="play_mode_title">Start a Match</string>
+    <string name="create_online_room">Create Room (Internet)</string>
+    <string name="join_online_room">Join Room (Internet)</string>
     <string name="host_bluetooth">Host Game (Bluetooth)</string>
     <string name="join_bluetooth">Join Game (Bluetooth)</string>
     <string name="practice_offline">Practice vs Phone (Offline)</string>

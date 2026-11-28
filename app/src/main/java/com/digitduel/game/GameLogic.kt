@@ -8,6 +8,15 @@ import kotlin.random.Random
 object GameLogic {
 
     const val NUMBER_LENGTH = 5
+    const val ROOM_CODE_LENGTH = 6
+    private const val ROOM_CODE_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
+    private const val ENVELOPE_PREFIX = "DD1"
+
+    data class RoomEnvelope(
+        val senderId: String,
+        val seq: Int,
+        val payload: String
+    )
 
     enum class DigitStatus(val code: Char) {
         CORRECT_PLACE('C'),
@@ -237,5 +246,50 @@ object GameLogic {
             "PLAY_AGAIN" -> if (parts.size == 1) ProtocolMessage.PlayAgain else null
             else -> null
         }
+    }
+
+    fun generateRoomCode(
+        prefix: Char = 'E',
+        random: Random = Random.Default
+    ): String {
+        val sb = StringBuilder(ROOM_CODE_LENGTH)
+        sb.append(prefix.uppercaseChar())
+        repeat(ROOM_CODE_LENGTH - 1) {
+            sb.append(ROOM_CODE_ALPHABET[random.nextInt(ROOM_CODE_ALPHABET.length)])
+        }
+        return sb.toString()
+    }
+
+    fun normalizeRoomCode(raw: String): String =
+        raw.trim().uppercase().filter { it in 'A'..'Z' || it in '0'..'9' }
+
+    fun isValidRoomCode(raw: String): Boolean {
+        val normalized = normalizeRoomCode(raw)
+        return normalized.length == ROOM_CODE_LENGTH
+    }
+
+    fun brokerIndexForRoomCode(code: String): Int {
+        val normalized = normalizeRoomCode(code)
+        if (normalized.isEmpty()) return 0
+        return when (normalized[0]) {
+            'H' -> 1
+            'M' -> 2
+            else -> 0
+        }
+    }
+
+    fun formatRoomEnvelope(senderId: String, seq: Int, payload: String): String {
+        val cleanPayload = payload.replace("\r", "").replace("\n", " ")
+        return "$ENVELOPE_PREFIX|$senderId|$seq|$cleanPayload"
+    }
+
+    fun parseRoomEnvelope(raw: String): RoomEnvelope? {
+        val parts = raw.split("|", limit = 4)
+        if (parts.size != 4 || parts[0] != ENVELOPE_PREFIX) return null
+        val senderId = parts[1].trim()
+        val seq = parts[2].toIntOrNull() ?: return null
+        val payload = parts[3]
+        if (senderId.isEmpty() || payload.isEmpty()) return null
+        return RoomEnvelope(senderId = senderId, seq = seq, payload = payload)
     }
 }

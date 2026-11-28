@@ -138,4 +138,28 @@ class GameLogicTest {
         assertFalse(secondGuess.contains('3'))
         assertFalse(secondGuess.contains('7'))
     }
+
+    @Test
+    fun roomCodeAndEnvelopeHelpers_validateNormalizeAndRoundTrip() {
+        val code = GameLogic.generateRoomCode(prefix = 'E', random = Random(7))
+        assertEquals(6, code.length)
+        assertEquals('E', code[0])
+        assertTrue(GameLogic.isValidRoomCode(code))
+
+        assertEquals("H7K9P2", GameLogic.normalizeRoomCode(" h7k9-p2 "))
+        assertTrue(GameLogic.isValidRoomCode(" h7k9-p2 "))
+        assertFalse(GameLogic.isValidRoomCode("123"))
+
+        assertEquals(0, GameLogic.brokerIndexForRoomCode("E7K9P2"))
+        assertEquals(1, GameLogic.brokerIndexForRoomCode("h7k9p2"))
+        assertEquals(2, GameLogic.brokerIndexForRoomCode("M7K9P2"))
+
+        val wire = GameLogic.formatRoomEnvelope("peer1234", 5, "GUESS|04612")
+        val parsed = GameLogic.parseRoomEnvelope(wire)
+        assertNotNull(parsed)
+        assertEquals("peer1234", parsed!!.senderId)
+        assertEquals(5, parsed.seq)
+        assertEquals("GUESS|04612", parsed.payload)
+        assertNull(GameLogic.parseRoomEnvelope("BAD|peer|1|hi"))
+    }
 }

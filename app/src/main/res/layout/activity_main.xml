@@ -128,11 +128,11 @@
                     android:textStyle="bold" />
 
                 <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnHostBluetooth"
+                    android:id="@+id/btnCreateOnlineRoom"
                     android:layout_width="match_parent"
                     android:layout_height="52dp"
                     android:layout_marginBottom="10dp"
-                    android:text="@string/host_bluetooth"
+                    android:text="@string/create_online_room"
                     android:textAllCaps="false"
                     android:textColor="@color/bg_screen"
                     android:textStyle="bold"
@@ -140,16 +140,42 @@
                     app:cornerRadius="12dp" />
 
                 <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnJoinBluetooth"
+                    android:id="@+id/btnJoinOnlineRoom"
                     android:layout_width="match_parent"
                     android:layout_height="52dp"
-                    android:layout_marginBottom="10dp"
-                    android:text="@string/join_bluetooth"
+                    android:layout_marginBottom="14dp"
+                    android:text="@string/join_online_room"
                     android:textAllCaps="false"
                     android:textColor="@color/text_primary"
                     android:textStyle="bold"
                     app:backgroundTint="@color/accent_secondary"
                     app:cornerRadius="12dp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnHostBluetooth"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:layout_marginBottom="10dp"
+                    android:text="@string/host_bluetooth"
+                    android:textAllCaps="false"
+                    android:textColor="@color/accent_primary"
+                    android:textStyle="bold"
+                    app:cornerRadius="12dp"
+                    app:strokeColor="@color/accent_primary" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnJoinBluetooth"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:layout_marginBottom="10dp"
+                    android:text="@string/join_bluetooth"
+                    android:textAllCaps="false"
+                    android:textColor="@color/text_primary"
+                    android:textStyle="bold"
+                    app:cornerRadius="12dp"
+                    app:strokeColor="@color/accent_secondary" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnPracticeOffline"
