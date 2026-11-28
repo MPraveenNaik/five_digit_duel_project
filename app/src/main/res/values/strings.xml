@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Digit Duel</string>
+    <string name="app_subtitle">5-Digit Bluetooth Number Battle</string>
+
+    <string name="player_profile_title">Player Profile</string>
+    <string name="player_name_hint">Your Display Name</string>
+    <string name="save_name">Save</string>
+    <string name="stats_format">Games Played: %1$d  •  Wins: %2$d</string>
+
+    <string name="play_mode_title">Start a Match</string>
+    <string name="host_bluetooth">Host Game (Bluetooth)</string>
+    <string name="join_bluetooth">Join Game (Bluetooth)</string>
+    <string name="practice_offline">Practice vs Phone (Offline)</string>
+
+    <string name="how_to_play_title">How to Play</string>
+    <string name="how_to_play_rules">Pick a secret 5-digit number with NO repeating digits (leading zeros allowed). Take turns guessing your opponent\'s secret!</string>
+    <string name="legend_correct">Green — Digit exists &amp; is in the exact position</string>
+    <string name="legend_wrong">Amber — Digit exists, but in a different position</string>
+    <string name="legend_absent">Gray — Digit does not exist in the secret</string>
+
+    <string name="setup_title">Choose Your Secret</string>
+    <string name="setup_hint">Enter 5 unique digits (0–9, leading zeros allowed)</string>
+    <string name="secret_input_hint">5-Digit Secret</string>
+    <string name="lock_secret">Lock Secret</string>
+    <string name="waiting_opponent">Waiting for %1$s to lock their secret…</string>
+    <string name="leave_match">Leave</string>
+
+    <string name="secret_masked">My Secret: ••••• (Tap to peek)</string>
+    <string name="secret_revealed">My Secret: %1$s (Tap to hide)</string>
+    <string name="guess_input_hint">Enter 5-digit guess</string>
+    <string name="submit_guess">Submit Guess</string>
+    <string name="tab_your_guesses">Your Guesses (%1$d)</string>
+    <string name="tab_opponent_guesses">%1$s\'s Guesses (%2$d)</string>
+    <string name="empty_history">No guesses yet in this tab.</string>
+
+    <string name="play_again">Play Again</string>
+    <string name="back_to_lobby">Lobby</string>
+</resources>
