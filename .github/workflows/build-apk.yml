@@ -36,16 +36,16 @@ jobs:
       - name: Run unit tests
         run: |
           set -o pipefail
-          ./gradlew testDebugUnitTest --no-daemon --stacktrace 2>&1 | tee test.log || {
-            echo "::error::$(tail -n 60 test.log | tr '\n' ' ')"
+          ./gradlew testDebugUnitTest --no-daemon 2>&1 | tee test.log || {
+            echo "::error::$(grep -E '^e:|FAILURE:|Execution failed' test.log | head -n 30 | tr '\n' ' ')"
             exit 1
           }
 
       - name: Build debug APK
         run: |
           set -o pipefail
-          ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee build.log || {
-            echo "::error::$(tail -n 60 build.log | tr '\n' ' ')"
+          ./gradlew assembleDebug --no-daemon 2>&1 | tee build.log || {
+            echo "::error::$(grep -E '^e:|FAILURE:|Execution failed' build.log | head -n 30 | tr '\n' ' ')"
             exit 1
           }
 
